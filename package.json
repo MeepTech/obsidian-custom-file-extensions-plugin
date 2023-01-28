@@ -1,8 +1,8 @@
 {
 	"name": "obsidian-custom-file-extensions-plugin",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Associate views with custom file extensions via settings.",
-	"main": "main.js",
+	"main": "src/main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
