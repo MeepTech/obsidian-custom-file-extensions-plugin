@@ -77,10 +77,17 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
           next.configIsValid = false;
         }
 
-        this._updateConfigValidity(configTextArea, this.plugin.settings.configIsValid, next.configIsValid);
+        this._updateConfigValidity(
+          configTextArea,
+          this.plugin.settings.configIsValid,
+          next.configIsValid
+        );
+
         await this.plugin.updateSettings(next);
+
         this._updateErrors();
-        this._updateInfo();
+        this._updateList();
+        this._updateProfile();
       });
     configTextArea.inputEl.style.width = "100%";
     configTextArea.inputEl.style.height = "150px";
@@ -102,9 +109,12 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
             };
 
             await this.plugin.updateSettings(next);
+
             this._updateMobileConfigVisible(mobileConfigField, value);
+
             this._updateErrors();
-            this._updateInfo();
+            this._updateList();
+            this._updateProfile();
           });
         return toggle;
       });
@@ -116,21 +126,18 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
         ? JSON.stringify(this.plugin.settings.mobileSettings.types, null, 2)
         : "")
       .onChange(async (value) => {
-        let prev = this.plugin.settings.mobileSettings.configIsValid
-          ?? this.plugin.settings.configIsValid;
         let next = {
           ...this.plugin.settings,
           mobileSettings: {
             ...this.plugin.settings.mobileSettings,
+            types: undefined as Record<string, Array<string>> | undefined
           }
         };
 
-        let parsed: Record<string, Array<string>>;
-        if (value === "" || value === null || value === undefined) {
-          parsed = undefined!;
-        } else {
+
+        if (value !== "" && value !== null && value !== undefined) {
           try {
-            parsed = JSON.parse(value);
+            let parsed: Record<string, Array<string>> = JSON.parse(value);
             next.mobileSettings.configIsValid = true;
             next.mobileSettings.types = parsed;
           } catch {
@@ -138,14 +145,22 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
           }
         }
 
-        this._updateConfigValidity(mobileConfigField, prev, next.mobileSettings.configIsValid ?? true);
+        this._updateConfigValidity(
+          mobileConfigField,
+          this.plugin.settings.mobileSettings.configIsValid,
+          next.mobileSettings.configIsValid
+        );
+
         await this.plugin.updateSettings(next);
+
         this._updateErrors();
-        this._updateInfo();
+        this._updateList();
+        this._updateProfile();
       });
     mobileConfigField.inputEl.style.width = "100%";
     mobileConfigField.inputEl.style.height = "150px";
     mobileConfigField.inputEl.style.minHeight = "100px";
+    this._updateMobileConfigVisible(mobileConfigField, this.plugin.settings.mobileSettings.enabled);
 
     new Setting(containerEl)
       .setName("Allow Override Of .md Extension")
@@ -163,7 +178,6 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
         return toggle;
       });
 
-    this._updateMobileConfigVisible(mobileConfigField, this.plugin.settings.mobileSettings.enabled);
 
     containerEl.createEl('h3', { text: 'Errors' });
     this._errors = containerEl.createEl('p', { text: "None" });
@@ -178,11 +192,15 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
     this._profile.style.whiteSpace = "pre-line";
 
     this._updateErrors();
-    this._updateInfo();
+    this._updateList();
+    this._updateProfile();
   }
 
   private _updateMobileConfigVisible(mobileConfigField: TextAreaComponent, mobileSettingsEnabled: boolean) {
-    mobileConfigField.inputEl.style.display = mobileSettingsEnabled ? "block" : "none";
+    mobileConfigField.inputEl.style.display
+      = mobileSettingsEnabled
+        ? "block"
+        : "none";
   }
 
   private _updateConfigValidity(text: TextAreaComponent, prevWasValid: boolean, nextIsValid: boolean) {
@@ -219,7 +237,13 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
     }
   }
 
-  private _updateInfo() {
+  private _updateProfile() {
+    this._profile.innerHTML = this.plugin.useMobile
+      ? "Mobile"
+      : "Desktop";
+  }
+
+  private _updateList() {
     this._views.innerHTML
       = `<ul>${Object.keys(
         /**@ts-expect-error */
@@ -248,10 +272,6 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
               ).join(", ")}`
             : ``}</li>`
       }).join("")}</ul>`
-
-    this._profile.innerHTML = this.plugin.useMobile
-      ? "Mobile"
-      : "Desktop";
 
     function _copy() {
       return `
