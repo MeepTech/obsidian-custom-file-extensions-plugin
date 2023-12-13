@@ -1,25 +1,13 @@
-import { App, Plugin, PluginSettingTab, Setting, TextAreaComponent } from 'obsidian';
-
-interface CustomFileExtensionsSettings {
-  additionalFileTypes: Record<string, Array<string>>;
-  currentValueIsInvalidJson: boolean;
-}
-
-const DEFAULT_SETTINGS: CustomFileExtensionsSettings = {
-  additionalFileTypes: {
-    "markdown": [
-      "", "txt", "html",
-      "js", "css", "ts",
-      "jsx", "tsx", "yaml",
-      "yml", "sass", "scss"
-    ]
-  },
-  currentValueIsInvalidJson: false
-}
+import { Platform, Plugin } from 'obsidian';
+import {
+  CustomFileExtensionsSettingTab,
+  CustomFileExtensionsSettings,
+  DEFAULT_SETTINGS
+} from './settings';
 
 export default class CustomFileExtensions extends Plugin {
   private _settings: CustomFileExtensionsSettings;
-  public get settings(): CustomFileExtensionsSettings {
+  public get settings(): Readonly<CustomFileExtensionsSettings> {
     return this._settings;
   }
 
@@ -27,13 +15,17 @@ export default class CustomFileExtensions extends Plugin {
     super.onload();
     await this.loadSettings();
     this.addSettingTab(new CustomFileExtensionsSettingTab(this.app, this));
-    this._apply(this.settings.additionalFileTypes);
+    if (this._settings.allowMdOverride) {
+      /**@ts-expect-error */
+      this.app.viewRegistry.unregisterExtensions(["md"]);
+    }
+    this._apply(this.settings.types);
   }
 
   onunload() {
-    this._unapply(this._settings.additionalFileTypes);
+    this._unapply(this._settings.types, true);
 
-    // reset the defaults:
+    // reset the default:
     try {
       this.registerExtensions([".md"], 'markdown');
     } catch { }
@@ -44,99 +36,66 @@ export default class CustomFileExtensions extends Plugin {
   }
 
   async updateSettings(newSettings: CustomFileExtensionsSettings) {
-    this._unapply(this._settings.additionalFileTypes);
+    this._unapply(this._settings.types, newSettings.allowMdOverride);
     this._settings = newSettings;
 
-    await this.saveData(this.settings);
-    this._apply(this.settings.additionalFileTypes);
+    await this.saveData(this._settings);
+    if (Platform.isMobile && this._settings.mobileSettings.enabled) {
+      this._apply(this._settings.mobileSettings.types
+        ?? this._settings.types);
+    } else {
+      this._apply(this._settings.types);
+    }
   }
 
   private _apply(extensionsByViewType: Record<string, Array<string>>) {
+    this._settings.errors = {};
     for (const view in extensionsByViewType) {
-      for (const fileType of this.settings.additionalFileTypes[view]) {
-        this.registerExtensions([fileType], view);
+      for (const fileType of this.settings.types[view]) {
+        this._tryToApply(fileType.toLowerCase(), view);
       }
     }
   }
 
-  private _unapply(extensionsByViewType: Record<string, Array<string>>) {
-    for (const view of Object.values(extensionsByViewType).flat()) {
-      try {
-        /**@ts-expect-error */
-        this.app.viewRegistry.unregisterExtensions([view]);
-      } catch {
-        console.log("ERROR");
-      }
-    }
-  }
-}
-
-class CustomFileExtensionsSettingTab extends PluginSettingTab {
-  plugin: CustomFileExtensions;
-  private _defaults?: {
-    color: string;
-    borderColor: string;
-    borderWidth: string;
-  } = undefined;
-
-  constructor(app: App, plugin: CustomFileExtensions) {
-    super(app, plugin);
-    this.plugin = plugin;
-  }
-
-  display(): void {
-    const { containerEl } = this;
-
-    containerEl.empty();
-
-    containerEl.createEl('h2', { text: 'Custom File Extensions Settings' });
-
-    const settings = new Setting(containerEl)
-      .setName('Config')
-      .setDesc("Valid entry is a JSON object with properties named after the desired view, containing the file types to assign to that view. EX: " + DEFAULT_SETTINGS.additionalFileTypes)
-      .addTextArea(text => {
-        text = text
-          .setPlaceholder(JSON.stringify(DEFAULT_SETTINGS.additionalFileTypes))
-          .setValue(JSON.stringify(this.plugin.settings.additionalFileTypes))
-          .onChange(async (value) => {
-            let parsed: any = null;
-            try {
-              parsed = JSON.parse(value);
-              this.updateErrorState(text, false);
-            } catch {
-              this.updateErrorState(text, true);
-              return;
-            }
-
-            this.plugin.settings.additionalFileTypes = parsed;
-            await this.plugin.updateSettings(this.plugin.settings);
-          });
-        
-        return text;
-      });
-  }
-
-  updateErrorState(text: TextAreaComponent, to: boolean) {
-    if (this.plugin.settings.currentValueIsInvalidJson !== to) {
-      this.plugin.settings.currentValueIsInvalidJson = to;
-
-      if (this.plugin.settings.currentValueIsInvalidJson) {
-        if (!this._defaults) {
-          this._defaults = {
-            color: text.inputEl.style.color,
-            borderColor: text.inputEl.style.borderColor,
-            borderWidth: text.inputEl.style.borderWidth
-          }
+  private _unapply(extensionsByViewType: Record<string, Array<string>>, allowMdOverride: boolean) {
+    for (const extension of Object.values(extensionsByViewType).flat()) {
+      if (allowMdOverride || extension !== "md") {
+        try {
+          /**@ts-expect-error */
+          this.app.viewRegistry.unregisterExtensions([extension]);
+        } catch {
+          console.log("ERROR");
         }
-
-        text.inputEl.style.color = "var(--text-error)"// "red";
-        text.inputEl.style.borderColor = "var(--background-modifier-error-rgb)" // "red";
-        text.inputEl.style.borderWidth = "3px";
-      } else if (this._defaults) {
-        text.inputEl.style.color = this._defaults.color;
-        text.inputEl.style.borderColor = this._defaults.borderColor;
-        text.inputEl.style.borderWidth = this._defaults.borderWidth;
       }
+    }
+  }
+
+  private _tryToApply(fileType: string, view: string) {
+    if (!this.settings.allowMdOverride && fileType === "md") {
+      return;
+    }
+
+    try {
+      this.registerExtensions([fileType], view);
+    } catch (e) {
+      /**@ts-expect-error */
+      let current: string = this.app.viewRegistry.getTypeByExtension(fileType);
+
+      let message;
+      if (current) {
+        message = `${fileType} is already registered to ${current}.`;
+      } else {
+        message = `${e}`;
+      }
+
+      message = `Could not register extension: '${fileType}' to view type: ${view}. ${message}`;
+
+      new Notification("Error: Custom File Extensions Plugin", {
+        body: message,
+      });
+
+      console.error(message);
+      this._settings.errors[fileType] = message;
     }
   }
 }
