@@ -44,7 +44,8 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
   } = undefined;
   private _errors: HTMLParagraphElement;
   private _views: HTMLParagraphElement;
-  private _profile: HTMLParagraphElement;
+  private _config: Setting;
+  private _mobileConfig: Setting;
 
   constructor(app: App, plugin: CustomFileExtensions) {
     super(app, plugin);
@@ -57,9 +58,16 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
 
     containerEl.empty();
     containerEl.createEl('h2', { text: 'Custom File Extensions Settings' });
-    new Setting(containerEl)
+    this._config = new Setting(containerEl)
       .setName('Config')
-      .setDesc("Valid entry is a JSON object who's property keys are view types and values are arrays of the file types to assign to that view. \n\tEX: " + example)
+      .setDesc("Valid entry is a JSON object who's property keys are view types and values are arrays of the file types to assign to that view.")
+
+    let exampleText = document.createElement('div');
+    exampleText.style.fontSize = "80%";
+    exampleText.style.margin = "10px";
+    exampleText.innerHTML = `<b>Ex</b>: <code>${example}</code>`
+
+    this._config.nameEl.parentElement!.appendChild(exampleText);
     let configTextArea = new TextAreaComponent(containerEl)
       .setPlaceholder(example)
       .setValue(JSON.stringify(this.plugin.settings.types, null, 2))
@@ -93,9 +101,9 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
     configTextArea.inputEl.style.height = "150px";
     configTextArea.inputEl.style.minHeight = "100px";
 
-    new Setting(containerEl)
-      .setName("Enable Mobile Specific Config")
-      .setDesc("If true, the config settings below will be used on mobile devices instead of the above settings.")
+    this._mobileConfig = new Setting(containerEl)
+      .setName("Mobile Specific Config")
+      .setDesc("If enabled: the config settings below will be used on mobile devices, and the above settings.")
       .addToggle(toggle => {
         toggle
           .setValue(this.plugin.settings.mobileSettings.enabled)
@@ -164,7 +172,7 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Allow Override Of .md Extension")
-      .setDesc("If true, the .md extension will be allowed to override the default markdown view type. This is disabled by default to prevent unexpected behavior.")
+      .setDesc("If enabled: the .md extension will be allowed to override the default markdown view type. This is disabled by default to prevent unexpected behavior.")
       .addToggle(toggle => {
         toggle
           .setValue(this.plugin.settings.allowMdOverride)
@@ -186,10 +194,6 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
     containerEl.createEl('h3', { text: 'Active View Types and Extensions' });
     this._views = containerEl.createEl('p')
     this._views.style.whiteSpace = "pre-line";
-
-    containerEl.createEl('h3', { text: 'Active Profile' });
-    this._profile = containerEl.createEl('p')
-    this._profile.style.whiteSpace = "pre-line";
 
     this._updateErrors();
     this._updateList();
@@ -238,9 +242,13 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
   }
 
   private _updateProfile() {
-    this._profile.innerHTML = this.plugin.useMobile
-      ? "Mobile"
-      : "Desktop";
+    if (this.plugin.useMobile) {
+      this._mobileConfig.nameEl.innerHTML = `Mobile Specific Config&nbsp;<sup style="color: green">(active)</sup>`
+      this._config.nameEl.innerHTML = `Config&nbsp;<sup style="color: gray">(inactive)</sup>`
+    } else {
+      this._config.nameEl.innerHTML = `Config&nbsp;<sup style="color: green">(active)</sup>`;
+      this._mobileConfig.nameEl.innerHTML = `Mobile Specific Config&nbsp;<sup style="color: gray">(inactive)</sup>`
+    }
   }
 
   private _updateList() {

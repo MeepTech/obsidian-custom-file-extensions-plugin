@@ -12,7 +12,8 @@ export default class CustomFileExtensions extends Plugin {
   }
 
   public get useMobile(): boolean {
-    return Platform.isMobile && this.settings.mobileSettings.enabled
+    return Platform.isMobile
+      && this.settings.mobileSettings.enabled
   }
 
   async onload() {
@@ -23,11 +24,11 @@ export default class CustomFileExtensions extends Plugin {
       /**@ts-expect-error */
       this.app.viewRegistry.unregisterExtensions(["md"]);
     }
-    this._apply(this.settings.types);
+    this._apply();
   }
 
   onunload() {
-    this._unapply(this._settings.types, true);
+    this._unapply(this.settings);
 
     // reset the default:
     try {
@@ -39,40 +40,56 @@ export default class CustomFileExtensions extends Plugin {
     this._settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
   }
 
+  async resetSettings() {
+    this._unapply(this.settings);
+    await this.updateSettings(DEFAULT_SETTINGS);
+    this._apply();
+  }
+
   async updateSettings(newSettings: CustomFileExtensionsSettings) {
-    if (this.useMobile) {
-      this._unapply(this.settings.mobileSettings.types ?? this.settings.types, newSettings.allowMdOverride);
-    } else {
-      this._unapply(this.settings.types, newSettings.allowMdOverride);
-    }
+    this._unapply(newSettings);
 
     this._settings = newSettings;
 
     await this.saveData(this.settings);
+    this._apply();
+  }
+
+  private _unapply(newSettings: CustomFileExtensionsSettings) {
     if (this.useMobile) {
-      this._apply(this.settings.mobileSettings.types ?? this.settings.types);
+      this._unapplyConfig(this.settings.mobileSettings.types ?? this.settings.types, newSettings.allowMdOverride);
     } else {
-      this._apply(this.settings.types);
+      this._unapplyConfig(this.settings.types, newSettings.allowMdOverride);
     }
   }
 
-  private _apply(extensionsByViewType: Record<string, Array<string>>) {
+  private _apply() {
+    if (this.useMobile) {
+      this._applyConfig(this.settings.mobileSettings.types ?? this.settings.types);
+    } else {
+      this._applyConfig(this.settings.types);
+    }
+  }
+
+  private _applyConfig(extensionsByViewType: Record<string, Array<string>>) {
     this._settings.errors = {};
     for (const view in extensionsByViewType) {
-      for (const fileType of this.settings.types[view]) {
+      for (const fileType of extensionsByViewType[view]) {
         this._tryToApply(fileType.toLowerCase(), view);
       }
     }
   }
 
-  private _unapply(extensionsByViewType: Record<string, Array<string>>, allowMdOverride: boolean) {
+  private _unapplyConfig(extensionsByViewType: Record<string, Array<string>>, allowMdOverride: boolean) {
     for (const extension of Object.values(extensionsByViewType).flat()) {
       if (allowMdOverride || extension !== "md") {
-        try {
-          /**@ts-expect-error */
-          this.app.viewRegistry.unregisterExtensions([extension]);
-        } catch {
-          console.log("ERROR");
+        if (!this._settings.errors[extension]) {
+          try {
+            /**@ts-expect-error */
+            this.app.viewRegistry.unregisterExtensions([extension]);
+          } catch {
+            console.log("ERROR");
+          }
         }
       }
     }

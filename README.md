@@ -31,9 +31,8 @@ The default settings assign the following to Obsidian's `markdown` view:
 
 ## Extra Features
 For convenience and debugging purpouses; This plugin also provides: 
-  - A list of all currently associated file extensions in the current vault, 
-  - A list of all known view types in the current vault,
-  - and a list of all errors related to the current plugin configuration. 
+  - A list of all currently known view types and their associated file extensions for the current vault.
+  - A list of all errors related to the current plugin configuration. 
 This infomation can be found at the bottom of the plugin settings tab. 
 
 ## Compatibility and Debugging
@@ -46,6 +45,8 @@ You can also use the *Mobile Specific* settings to augment extension support for
 - All entered extensions are case-insensitive.
 - "" (empty string) is a valid extension and will be treated as a file with no extension.
 - If left empty while enabled, the mobile config will default to the desktop config.
+- The active profile (desktop vs mobile) is indicated with superscript text in the settings tab.
+- Items in the views and extensions list under the settings tab can be copied to the clipboard by clicking on them.
 - The plugin updates extensions in real-time whenever it detects a new valid config. This means you may see pop up errors while editing the config, but as long as there are no consistent errors in the settings tab when you are done editing the config then the plugin should be working as intended.
 - The Allow md Extension Override toggle applies to both desktop and mobile settings (when enabled).
 
