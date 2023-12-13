@@ -60,36 +60,33 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName('Config')
       .setDesc("Valid entry is a JSON object who's property keys are view types and values are arrays of the file types to assign to that view. \n\tEX: " + example)
-      .addTextArea(text => {
-        text = text
-          .setPlaceholder(example)
-          .setValue(JSON.stringify(this.plugin.settings.types, null, 2))
-          .onChange(async (value) => {
-            let parsed: any = null;
-            let next = {
-              ...this.plugin.settings,
-            };
+    let configTextArea = new TextAreaComponent(containerEl)
+      .setPlaceholder(example)
+      .setValue(JSON.stringify(this.plugin.settings.types, null, 2))
+      .onChange(async (value) => {
+        let parsed: any = null;
+        let next = {
+          ...this.plugin.settings,
+        };
 
-            try {
-              parsed = JSON.parse(value);
-              next.configIsValid = true;
-              next.types = parsed;
-            } catch {
-              next.configIsValid = false;
-            }
+        try {
+          parsed = JSON.parse(value);
+          next.configIsValid = true;
+          next.types = parsed;
+        } catch {
+          next.configIsValid = false;
+        }
 
-            this._updateConfigValidity(text, this.plugin.settings.configIsValid, next.configIsValid);
-            await this.plugin.updateSettings(next);
-            this._updateErrors();
-            this._updateInfo();
-          });
-
-        text.inputEl.style.width = "300px";
-        text.inputEl.style.height = "150px";
-        return text;
+        this._updateConfigValidity(configTextArea, this.plugin.settings.configIsValid, next.configIsValid);
+        await this.plugin.updateSettings(next);
+        this._updateErrors();
+        this._updateInfo();
       });
+    configTextArea.inputEl.style.width = "100%";
+    configTextArea.inputEl.style.height = "150px";
+    configTextArea.inputEl.style.minHeight = "100px";
 
-    let mobileSettings = new Setting(containerEl)
+    new Setting(containerEl)
       .setName("Enable Mobile Specific Config")
       .setDesc("If true, the config settings below will be used on mobile devices instead of the above settings.")
       .addToggle(toggle => {
@@ -112,10 +109,8 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
         return toggle;
       });
 
-    let mobileConfigField = mobileSettings.controlEl.parentElement?.appendChild(
-      document.createElement("div")
-    )!;
-    let mobileConfigTextArea = new TextAreaComponent(mobileConfigField)
+
+    let mobileConfigField = new TextAreaComponent(containerEl)
       .setPlaceholder(example)
       .setValue(this.plugin.settings.mobileSettings.types
         ? JSON.stringify(this.plugin.settings.mobileSettings.types, null, 2)
@@ -143,14 +138,14 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
           }
         }
 
-        this._updateConfigValidity(mobileConfigTextArea, prev, next.mobileSettings.configIsValid ?? true);
+        this._updateConfigValidity(mobileConfigField, prev, next.mobileSettings.configIsValid ?? true);
         await this.plugin.updateSettings(next);
         this._updateErrors();
         this._updateInfo();
       });
-
-    mobileConfigTextArea.inputEl.style.width = "300px";
-    mobileConfigTextArea.inputEl.style.height = "150px";
+    mobileConfigField.inputEl.style.width = "100%";
+    mobileConfigField.inputEl.style.height = "150px";
+    mobileConfigField.inputEl.style.minHeight = "100px";
 
     new Setting(containerEl)
       .setName("Allow Override Of .md Extension")
@@ -186,8 +181,8 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
     this._updateInfo();
   }
 
-  private _updateMobileConfigVisible(mobileConfigField: HTMLDivElement, mobileSettingsEnabled: boolean) {
-    mobileConfigField.style.display = mobileSettingsEnabled ? "block" : "none";
+  private _updateMobileConfigVisible(mobileConfigField: TextAreaComponent, mobileSettingsEnabled: boolean) {
+    mobileConfigField.inputEl.style.display = mobileSettingsEnabled ? "block" : "none";
   }
 
   private _updateConfigValidity(text: TextAreaComponent, prevWasValid: boolean, nextIsValid: boolean) {
