@@ -11,6 +11,10 @@ export default class CustomFileExtensions extends Plugin {
     return this._settings;
   }
 
+  public get useMobile(): boolean {
+    return Platform.isMobile && this.settings.mobileSettings.enabled
+  }
+
   async onload() {
     super.onload();
     await this.loadSettings();
@@ -36,15 +40,19 @@ export default class CustomFileExtensions extends Plugin {
   }
 
   async updateSettings(newSettings: CustomFileExtensionsSettings) {
-    this._unapply(this._settings.types, newSettings.allowMdOverride);
+    if (this.useMobile) {
+      this._unapply(this.settings.mobileSettings.types ?? this.settings.types, newSettings.allowMdOverride);
+    } else {
+      this._unapply(this.settings.types, newSettings.allowMdOverride);
+    }
+
     this._settings = newSettings;
 
-    await this.saveData(this._settings);
-    if (Platform.isMobile && this._settings.mobileSettings.enabled) {
-      this._apply(this._settings.mobileSettings.types
-        ?? this._settings.types);
+    await this.saveData(this.settings);
+    if (this.useMobile) {
+      this._apply(this.settings.mobileSettings.types ?? this.settings.types);
     } else {
-      this._apply(this._settings.types);
+      this._apply(this.settings.types);
     }
   }
 

@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, TextAreaComponent } from 'obsidian';
+import { App, Platform, PluginSettingTab, Setting, TextAreaComponent } from 'obsidian';
 import CustomFileExtensions from './main';
 
 export interface CustomFileExtensionsSettings {
@@ -6,9 +6,11 @@ export interface CustomFileExtensionsSettings {
   configIsValid: boolean;
   allowMdOverride: boolean;
   errors: Record<string, string>;
-  mobileSettings: Readonly<Omit<CustomFileExtensionsSettings, "mobileSettings" | "errors" | "allowMdOverride">> & {
+  mobileSettings: Readonly<{
     enabled: boolean;
-  }
+    configIsValid: boolean;
+    types: Record<string, Array<string>> | undefined;
+  }>
 }
 
 const _DEFAULT_TYPES = {
@@ -40,7 +42,9 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
     borderColor: string;
     borderWidth: string;
   } = undefined;
-  private _errors: HTMLElement;
+  private _errors: HTMLParagraphElement;
+  private _views: HTMLParagraphElement;
+  private _profile: HTMLParagraphElement;
 
   constructor(app: App, plugin: CustomFileExtensions) {
     super(app, plugin);
@@ -77,13 +81,15 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
             this._updateConfigValidity(text, this.plugin.settings.configIsValid, next.configIsValid);
             await this.plugin.updateSettings(next);
             this._updateErrors();
+            this._updateInfo();
           });
 
-        text.inputEl.style.width = "50%";
+        text.inputEl.style.width = "300px";
+        text.inputEl.style.height = "150px";
         return text;
       });
 
-    new Setting(containerEl)
+    let mobileSettings = new Setting(containerEl)
       .setName("Enable Mobile Specific Config")
       .setDesc("If true, the config settings below will be used on mobile devices instead of the above settings.")
       .addToggle(toggle => {
@@ -94,55 +100,57 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
               ...this.plugin.settings,
               mobileSettings: {
                 ...this.plugin.settings.mobileSettings,
-                types: this.plugin.settings.mobileSettings.types
-                  ?? this.plugin.settings.types
-                  ?? _DEFAULT_TYPES,
                 enabled: value
               }
             };
+
             await this.plugin.updateSettings(next);
             this._updateMobileConfigVisible(mobileConfigField, value);
             this._updateErrors();
+            this._updateInfo();
           });
         return toggle;
       });
 
-    let mobileConfigField = new Setting(containerEl)
-      .setName('Mobile Config')
-      .setDisabled(!this.plugin.settings.mobileSettings.enabled)
-      .addTextArea(text => {
-        text = text
-          .setPlaceholder(example)
-          .setValue(JSON.stringify(this.plugin.settings.mobileSettings.types
-            ?? this.plugin.settings.types, null, 2))
-          .onChange(async (value) => {
-            let prev = this.plugin.settings.mobileSettings.configIsValid
-              ?? this.plugin.settings.configIsValid;
-            let next = {
-              ...this.plugin.settings,
-              mobileSettings: {
-                ...this.plugin.settings.mobileSettings,
-              }
-            };
+    let mobileConfigField = mobileSettings.controlEl.parentElement?.appendChild(
+      document.createElement("div")
+    )!;
+    let mobileConfigTextArea = new TextAreaComponent(mobileConfigField)
+      .setPlaceholder(example)
+      .setValue(this.plugin.settings.mobileSettings.types
+        ? JSON.stringify(this.plugin.settings.mobileSettings.types, null, 2)
+        : "")
+      .onChange(async (value) => {
+        let prev = this.plugin.settings.mobileSettings.configIsValid
+          ?? this.plugin.settings.configIsValid;
+        let next = {
+          ...this.plugin.settings,
+          mobileSettings: {
+            ...this.plugin.settings.mobileSettings,
+          }
+        };
 
-            let parsed: Record<string, Array<string>>;
-            if (value === "" || value === null || value === undefined) {
-              parsed = this.plugin.settings.types;
-            } else {
-              try {
-                parsed = JSON.parse(value);
-                next.mobileSettings.configIsValid = true;
-                next.mobileSettings.types = parsed;
-              } catch {
-                next.mobileSettings.configIsValid = false;
-              }
-            }
+        let parsed: Record<string, Array<string>>;
+        if (value === "" || value === null || value === undefined) {
+          parsed = undefined!;
+        } else {
+          try {
+            parsed = JSON.parse(value);
+            next.mobileSettings.configIsValid = true;
+            next.mobileSettings.types = parsed;
+          } catch {
+            next.mobileSettings.configIsValid = false;
+          }
+        }
 
-            this._updateConfigValidity(text, prev, next.mobileSettings.configIsValid ?? true);
-            await this.plugin.updateSettings(next);
-            this._updateErrors();
-          });
+        this._updateConfigValidity(mobileConfigTextArea, prev, next.mobileSettings.configIsValid ?? true);
+        await this.plugin.updateSettings(next);
+        this._updateErrors();
+        this._updateInfo();
       });
+
+    mobileConfigTextArea.inputEl.style.width = "300px";
+    mobileConfigTextArea.inputEl.style.height = "150px";
 
     new Setting(containerEl)
       .setName("Allow Override Of .md Extension")
@@ -166,31 +174,20 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
     this._errors = containerEl.createEl('p', { text: "None" });
     this._errors.style.whiteSpace = "pre-line";
 
-    containerEl.createEl('h3', { text: 'Active Extension Associations' });
-    containerEl.createEl('p', {
-      text: JSON.stringify(
-        /**@ts-expect-error */
-        this.app.viewRegistry.typeByExtension,
-        null, 2
-      ).replace(/[\{\}]/g, "")
-    }).style.whiteSpace = "pre-line";
+    containerEl.createEl('h3', { text: 'Active View Types and Extensions' });
+    this._views = containerEl.createEl('p')
+    this._views.style.whiteSpace = "pre-line";
 
-    containerEl.createEl('h3', { text: 'Known View Types' });
-    containerEl.createEl('p', {
-      text:
-        JSON.stringify(
-          Object.keys(
-            /**@ts-expect-error */
-            this.app.viewRegistry.viewByType
-          ), null, 2
-        ).replace(/[\[\]]/g, "")
-    }).style.whiteSpace = "pre-line";
+    containerEl.createEl('h3', { text: 'Active Profile' });
+    this._profile = containerEl.createEl('p')
+    this._profile.style.whiteSpace = "pre-line";
 
     this._updateErrors();
+    this._updateInfo();
   }
 
-  private _updateMobileConfigVisible(mobileConfigField: Setting, mobileSettingsEnabled: boolean) {
-    mobileConfigField.controlEl.style.display = mobileSettingsEnabled ? "block" : "none";
+  private _updateMobileConfigVisible(mobileConfigField: HTMLDivElement, mobileSettingsEnabled: boolean) {
+    mobileConfigField.style.display = mobileSettingsEnabled ? "block" : "none";
   }
 
   private _updateConfigValidity(text: TextAreaComponent, prevWasValid: boolean, nextIsValid: boolean) {
@@ -220,8 +217,67 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
       this._errors.innerHTML = `None`;
       this._errors.style.color = "green";
     } else {
-      this._errors.innerHTML = `Errors: <ul>${Object.keys(this.plugin.settings.errors).map((k) => `<li><b><u>${k}</u></b>: ${this.plugin.settings.errors[k]}</li>`).join("")}</ul>`;
+      this._errors.innerHTML = `Errors: <ul>${Object.keys(this.plugin.settings.errors)
+        .map((k) => `<li><b>${k}</b>: ${this.plugin.settings.errors[k]}</li>`)
+        .join("")}</ul>`;
       this._errors.style.color = "var(--text-error)";
     }
+  }
+
+  private _updateInfo() {
+    this._views.innerHTML
+      = `<ul>${Object.keys(
+        /**@ts-expect-error */
+        this.app.viewRegistry.viewByType
+      ).sort(
+        (a, b) => {
+          let extCountForViewKeyA = this._getExtensionsForView(a).length;
+          let extCountForViewKeyB = this._getExtensionsForView(b).length;
+
+          return extCountForViewKeyB - extCountForViewKeyA;
+        }
+      ).map(viewType => {
+        const extensions = this._getExtensionsForView(viewType);
+
+        return `<li>${extensions.length > 0
+          ? `<b ${_copy()}>${viewType}</b>`
+          : `<span ${_copy()} style="color: gray">${viewType}</span>`
+          }${extensions.length
+            ? `: ${extensions
+              .sort(
+                (a, b) => b.length - a.length
+              ).map(
+                ext => ext
+                  ? `<code ${_copy()}>${ext}</code>`
+                  : `<code>""</code> <span style="color: gray"><i>(extensionless)</i></span>`
+              ).join(", ")}`
+            : ``}</li>`
+      }).join("")}</ul>`
+
+    this._profile.innerHTML = this.plugin.useMobile
+      ? "Mobile"
+      : "Desktop";
+
+    function _copy() {
+      return `
+      onmouseover="this.style.textDecoration='underline';" 
+      onmouseout="this.style.textDecoration='none';"
+      title="Click to copy"
+      onclick="
+        navigator.clipboard.writeText(this.innerText);
+        new Notification('Custom File Extensions Plugin', {body:'Copied: \\\'' + this.innerText + '\\\', to clipboard.'});
+      "`
+    }
+  }
+
+  _getExtensionsForView(view: string) {
+    return Object.entries(
+      /**@ts-expect-error */
+      this.app.viewRegistry.typeByExtension
+    ).filter(
+      ([, v]: [string, string]) => v === view
+    ).map(
+      ([ext, _]: [string, string]) => ext
+    );
   }
 }
