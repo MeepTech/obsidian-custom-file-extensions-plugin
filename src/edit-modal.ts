@@ -11,24 +11,20 @@ export class EditExtensionModal extends Modal {
     private plugin: CustomFileExtensions,
     private target: TAbstractFile,
   ) {
-    console.log("Opening modal")
     super(plugin.app);
     this.target ??= this.plugin.app.vault.getRoot();
 
     this._path = this.target.path.split("/").slice(0, -1).join("/");
-    console.log(this._path);
 
     let lastPart = this.target.path
       .split("/")
       .last()!;
     this._name = lastPart.split(".")[0]!;
-    console.log(this._name);
 
     let lastParts = lastPart?.split(".")!;
     this._originalExtension
       = this._newExtension
       = lastParts.length == 1 ? "" : lastParts.last()!;
-    console.log(this._originalExtension);
   }
 
   onOpen() {

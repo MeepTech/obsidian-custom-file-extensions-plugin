@@ -137,7 +137,12 @@ export class CustomFileExtensions extends Plugin {
             /**@ts-expect-error */
             this.app.viewRegistry.unregisterExtensions([extension]);
           } catch {
-            console.log("ERROR");
+            const message = `Could not unregister extension: '${extension}'`;
+            new Notification("Error: Custom File Extensions Plugin", {
+              body: message,
+            });
+
+            console.error(message);
           }
         }
       }
