@@ -304,3 +304,5 @@ export class CustomFileExtensionsSettingTab extends PluginSettingTab {
     );
   }
 }
+
+export default CustomFileExtensionsSettingTab;

@@ -29,7 +29,10 @@ The default settings assign the following to Obsidian's `markdown` view:
   "tex", "json", "md"
 ```
 
-## Extra Features
+## Editing File Extensions
+To edit the extension of a file, right click the file in the file-tree view or open it's context-menu and select the *Edit Extension* option. This will open a modal where you can enter/modify *just* the file extension. A Preceding dot is optional. Pressing the *Enter* key or clicking *Rename* will rename the file with the new extension. Pressing the *Esc* key or clicking out of the modal will prevent any changes from being made.
+
+## Extra Features and Info
 For convenience and debugging purpouses; This plugin also provides: 
   - A list of all currently known view types and their associated file extensions for the current vault.
   - A list of all errors related to the current plugin configuration. 
