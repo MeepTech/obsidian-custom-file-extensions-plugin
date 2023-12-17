@@ -1,11 +1,12 @@
-import { Platform, Plugin } from 'obsidian';
+import { Notice, Platform, Plugin } from 'obsidian';
 import {
   CustomFileExtensionsSettingTab,
   CustomFileExtensionsSettings,
   DEFAULT_SETTINGS
 } from './settings';
+import EditExtensionModal from './edit-modal';
 
-export default class CustomFileExtensions extends Plugin {
+export class CustomFileExtensions extends Plugin {
   private _settings: CustomFileExtensionsSettings;
   public get settings(): Readonly<CustomFileExtensionsSettings> {
     return this._settings;
@@ -19,12 +20,31 @@ export default class CustomFileExtensions extends Plugin {
   async onload() {
     super.onload();
     await this.loadSettings();
-    this.addSettingTab(new CustomFileExtensionsSettingTab(this.app, this));
     if (this._settings.allowMdOverride) {
       /**@ts-expect-error */
       this.app.viewRegistry.unregisterExtensions(["md"]);
     }
+
+    this.registerEvent(this._buildFileContextMenuEditExtensionItem());
+    this.addSettingTab(new CustomFileExtensionsSettingTab(this.app, this));
+
     this._apply();
+  }
+
+  private _buildFileContextMenuEditExtensionItem() {
+    return this.app.workspace.on("file-menu", (menu, file) => {
+      menu.addItem((item) => {
+        item
+          .setTitle("Edit Extension")
+          .setIcon("pencil")
+          .onClick(() =>
+            new EditExtensionModal(
+              this,
+              file
+            ).open()
+          );
+      });
+    });
   }
 
   onunload() {
@@ -55,43 +75,11 @@ export default class CustomFileExtensions extends Plugin {
     this._apply();
   }
 
-  private _unapply(newSettings: CustomFileExtensionsSettings) {
-    if (this.useMobile) {
-      this._unapplyConfig(this.settings.mobileSettings.types ?? this.settings.types, newSettings.allowMdOverride);
-    } else {
-      this._unapplyConfig(this.settings.types, newSettings.allowMdOverride);
-    }
-  }
-
   private _apply() {
     if (this.useMobile) {
       this._applyConfig(this.settings.mobileSettings.types ?? this.settings.types);
     } else {
       this._applyConfig(this.settings.types);
-    }
-  }
-
-  private _applyConfig(extensionsByViewType: Record<string, Array<string>>) {
-    this._settings.errors = {};
-    for (const view in extensionsByViewType) {
-      for (const fileType of extensionsByViewType[view]) {
-        this._tryToApply(fileType.toLowerCase(), view);
-      }
-    }
-  }
-
-  private _unapplyConfig(extensionsByViewType: Record<string, Array<string>>, allowMdOverride: boolean) {
-    for (const extension of Object.values(extensionsByViewType).flat()) {
-      if (allowMdOverride || extension !== "md") {
-        if (!this._settings.errors[extension]) {
-          try {
-            /**@ts-expect-error */
-            this.app.viewRegistry.unregisterExtensions([extension]);
-          } catch {
-            console.log("ERROR");
-          }
-        }
-      }
     }
   }
 
@@ -123,4 +111,38 @@ export default class CustomFileExtensions extends Plugin {
       this._settings.errors[fileType] = message;
     }
   }
+
+  private _applyConfig(extensionsByViewType: Record<string, Array<string>>) {
+    this._settings.errors = {};
+    for (const view in extensionsByViewType) {
+      for (const fileType of extensionsByViewType[view]) {
+        this._tryToApply(fileType.toLowerCase(), view);
+      }
+    }
+  }
+
+  private _unapply(newSettings: CustomFileExtensionsSettings) {
+    if (this.useMobile) {
+      this._unapplyConfig(this.settings.mobileSettings.types ?? this.settings.types, newSettings.allowMdOverride);
+    } else {
+      this._unapplyConfig(this.settings.types, newSettings.allowMdOverride);
+    }
+  }
+
+  private _unapplyConfig(extensionsByViewType: Record<string, Array<string>>, allowMdOverride: boolean) {
+    for (const extension of Object.values(extensionsByViewType).flat()) {
+      if (allowMdOverride || extension !== "md") {
+        if (!this._settings.errors[extension]) {
+          try {
+            /**@ts-expect-error */
+            this.app.viewRegistry.unregisterExtensions([extension]);
+          } catch {
+            console.log("ERROR");
+          }
+        }
+      }
+    }
+  }
 }
+
+export default CustomFileExtensions;
